@@ -69,9 +69,9 @@ export const fileRoutes = new Elysia({ prefix: '/api/files' })
     
     const result = await fileController.downloadFile(MOCK_USER_ID, fileId);
     
-    if (!result.success) {
+    if (!result.success || !result.file) {
       set.status = 404;
-      return result;
+      return { success: false, error: 'File not found' };
     }
     
     // Set content type and disposition headers

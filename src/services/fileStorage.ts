@@ -3,6 +3,8 @@ import { mkdir, writeFile, unlink, readFile, stat } from 'fs/promises';
 import { join, dirname, basename, extname } from 'path';
 import { randomUUID } from 'crypto';
 import { existsSync } from 'fs';
+import { readdir } from 'fs/promises';
+import { rm } from 'fs/promises';
 
 // Define storage structure
 const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
@@ -86,10 +88,12 @@ export const deleteFile = async (filePath: string): Promise<boolean> => {
     // This is a best-effort cleanup, failures are not critical
     try {
       while (dirPath !== UPLOAD_DIR) {
-        const dirContents = await Bun.file(dirPath).list();
+        // Use readdir from fs/promises instead of Bun.file().list()
+        const dirContents = await readdir(dirPath);
         if (dirContents.length > 0) break;
         
-        await Bun.rm(dirPath);
+        // Use rm from fs/promises instead of Bun.rm()
+        await rm(dirPath, { recursive: true });
         dirPath = dirname(dirPath);
       }
     } catch (err) {
@@ -134,7 +138,8 @@ export const getUserStorageUsage = async (userId: number): Promise<number> => {
         return 0;
       }
       
-      const files = await Bun.file(directory).list();
+      // Use readdir from fs/promises instead of Bun.file().list()
+      const files = await readdir(directory);
       
       for (const file of files) {
         const filePath = join(directory, file);

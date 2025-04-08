@@ -2,6 +2,10 @@
 import pool from '../config/database';
 import { cacheMiddleware } from '../config/redis';
 import { fileController } from './fileController';
+import { RowDataPacket, OkPacket } from 'mysql2';
+
+// Define types for MySQL results
+type QueryResult = [RowDataPacket[] | RowDataPacket[][] | OkPacket | OkPacket[], any];
 
 export const folderController = {
   // Create a new folder
@@ -17,9 +21,9 @@ export const folderController = {
         const [parentFolders] = await connection.query(
           `SELECT * FROM folders WHERE folder_id = ? AND user_id = ?`,
           [parentFolderId, userId]
-        );
+        ) as QueryResult;
         
-        if (parentFolders.length === 0) {
+        if ((parentFolders as RowDataPacket[]).length === 0) {
           await connection.rollback();
           return { success: false, error: 'Parent folder not found' };
         }
@@ -31,9 +35,9 @@ export const folderController = {
          WHERE user_id = ? AND name = ? AND 
          (parent_folder_id ${parentFolderId ? '= ?' : 'IS NULL'})`,
         parentFolderId ? [userId, name, parentFolderId] : [userId, name]
-      );
+      ) as QueryResult;
       
-      if (existingFolders.length > 0) {
+      if ((existingFolders as RowDataPacket[]).length > 0) {
         await connection.rollback();
         return { success: false, error: 'Folder already exists' };
       }
@@ -43,9 +47,9 @@ export const folderController = {
         `INSERT INTO folders (user_id, parent_folder_id, name)
          VALUES (?, ?, ?)`,
         [userId, parentFolderId, name]
-      );
+      ) as QueryResult;
       
-      const folderId = result.insertId;
+      const folderId = (result as OkPacket).insertId;
       
       // Clear relevant caches
       if (parentFolderId) {
@@ -62,10 +66,10 @@ export const folderController = {
       const [folders] = await connection.query(
         `SELECT * FROM folders WHERE folder_id = ?`,
         [folderId]
-      );
+      ) as QueryResult;
       
-      if (folders.length > 0) {
-        const folder = folders[0];
+      if ((folders as RowDataPacket[]).length > 0) {
+        const folder = (folders as RowDataPacket[])[0];
         return {
           success: true,
           folder: {
@@ -101,23 +105,23 @@ export const folderController = {
       const [folders] = await connection.query(
         `SELECT * FROM folders WHERE folder_id = ? AND user_id = ?`,
         [folderId, userId]
-      );
+      ) as QueryResult;
       
-      if (folders.length === 0) {
+      if ((folders as RowDataPacket[]).length === 0) {
         await connection.rollback();
         return { success: false, error: 'Folder not found' };
       }
       
-      const folder = folders[0];
+      const folder = (folders as RowDataPacket[])[0];
       
       // Check if folder has files
       const [files] = await connection.query(
         `SELECT * FROM files WHERE folder_id = ?`,
         [folderId]
-      );
+      ) as QueryResult;
       
       // Delete all files in the folder
-      for (const file of files) {
+      for (const file of files as RowDataPacket[]) {
         await fileController.deleteFile(userId, file.file_id);
       }
       
@@ -126,11 +130,11 @@ export const folderController = {
         const [subfolders] = await connection.query(
           `SELECT folder_id FROM folders WHERE parent_folder_id = ?`,
           [parentId]
-        );
+        ) as QueryResult;
         
         let folderIds: number[] = [];
         
-        for (const subfolder of subfolders) {
+        for (const subfolder of subfolders as RowDataPacket[]) {
           folderIds.push(subfolder.folder_id);
           // Recursively get subfolders
           const childIds = await getSubfolders(subfolder.folder_id);
@@ -196,14 +200,14 @@ export const folderController = {
       const [folders] = await connection.query(
         `SELECT * FROM folders WHERE folder_id = ? AND user_id = ?`,
         [folderId, userId]
-      );
+      ) as QueryResult;
       
-      if (folders.length === 0) {
+      if ((folders as RowDataPacket[]).length === 0) {
         await connection.rollback();
         return { success: false, error: 'Folder not found' };
       }
       
-      const folder = folders[0];
+      const folder = (folders as RowDataPacket[])[0];
       
       // Check if a folder with the new name already exists at this level
       const [existingFolders] = await connection.query(
@@ -214,9 +218,9 @@ export const folderController = {
         folder.parent_folder_id 
           ? [userId, newName, folderId, folder.parent_folder_id] 
           : [userId, newName, folderId]
-      );
+      ) as QueryResult;
       
-      if (existingFolders.length > 0) {
+      if ((existingFolders as RowDataPacket[]).length > 0) {
         await connection.rollback();
         return { success: false, error: 'A folder with this name already exists' };
       }
@@ -274,13 +278,13 @@ export const folderController = {
       const [folders] = await connection.query(
         `SELECT * FROM folders WHERE folder_id = ? AND user_id = ?`,
         [folderId, userId]
-      );
+      ) as QueryResult;
       
-      if (folders.length === 0) {
+      if ((folders as RowDataPacket[]).length === 0) {
         return { success: false, error: 'Folder not found' };
       }
       
-      const folder = folders[0];
+      const folder = (folders as RowDataPacket[])[0];
       
       // Get parent folder name if exists
       let parentFolderName = null;
@@ -288,10 +292,10 @@ export const folderController = {
         const [parentFolders] = await connection.query(
           `SELECT name FROM folders WHERE folder_id = ?`,
           [folder.parent_folder_id]
-        );
+        ) as QueryResult;
         
-        if (parentFolders.length > 0) {
-          parentFolderName = parentFolders[0].name;
+        if ((parentFolders as RowDataPacket[]).length > 0) {
+          parentFolderName = (parentFolders as RowDataPacket[])[0].name;
         }
       }
       
@@ -337,9 +341,9 @@ export const folderController = {
          WHERE user_id = ? AND parent_folder_id ${folderId ? '= ?' : 'IS NULL'}
          ORDER BY name ASC`,
         folderId ? [userId, folderId] : [userId]
-      );
+      ) as QueryResult;
       
-      const subfolderList = subfolders.map(subfolder => ({
+      const subfolderList = (subfolders as RowDataPacket[]).map((subfolder: RowDataPacket) => ({
         id: subfolder.folder_id,
         name: subfolder.name,
         parent_folder_id: subfolder.parent_folder_id,
@@ -371,14 +375,14 @@ export const folderController = {
       const [folders] = await connection.query(
         `SELECT * FROM folders WHERE folder_id = ? AND user_id = ?`,
         [folderId, userId]
-      );
+      ) as QueryResult;
       
-      if (folders.length === 0) {
+      if ((folders as RowDataPacket[]).length === 0) {
         await connection.rollback();
         return { success: false, error: 'Folder not found' };
       }
       
-      const folder = folders[0];
+      const folder = (folders as RowDataPacket[])[0];
       
       // Can't move a folder to itself
       if (folderId === newParentId) {
@@ -392,9 +396,9 @@ export const folderController = {
         const [newParentFolders] = await connection.query(
           `SELECT * FROM folders WHERE folder_id = ? AND user_id = ?`,
           [newParentId, userId]
-        );
+        ) as QueryResult;
         
-        if (newParentFolders.length === 0) {
+        if ((newParentFolders as RowDataPacket[]).length === 0) {
           await connection.rollback();
           return { success: false, error: 'New parent folder not found' };
         }
@@ -406,9 +410,9 @@ export const folderController = {
           const [childFolders] = await connection.query(
             `SELECT folder_id FROM folders WHERE parent_folder_id = ?`,
             [checkId]
-          );
+          ) as QueryResult;
           
-          for (const child of childFolders) {
+          for (const child of childFolders as RowDataPacket[]) {
             if (await isDescendant(child.folder_id, targetId)) {
               return true;
             }
@@ -427,9 +431,9 @@ export const folderController = {
           `SELECT * FROM folders 
            WHERE user_id = ? AND name = ? AND parent_folder_id = ?`,
           [userId, folder.name, newParentId]
-        );
+        ) as QueryResult;
         
-        if (existingFolders.length > 0) {
+        if ((existingFolders as RowDataPacket[]).length > 0) {
           await connection.rollback();
           return { success: false, error: 'A folder with this name already exists in the destination' };
         }
@@ -439,9 +443,9 @@ export const folderController = {
           `SELECT * FROM folders 
            WHERE user_id = ? AND name = ? AND parent_folder_id IS NULL`,
           [userId, folder.name]
-        );
+        ) as QueryResult;
         
-        if (existingFolders.length > 0) {
+        if ((existingFolders as RowDataPacket[]).length > 0) {
           await connection.rollback();
           return { success: false, error: 'A folder with this name already exists in the destination' };
         }
@@ -513,7 +517,7 @@ export const folderController = {
       const files = filesResult.success ? filesResult.files : [];
       
       // Prepare subfolders in the format expected by frontend
-      const formattedSubfolders = subfolders.map(folder => ({
+      const formattedSubfolders = subfolders.map((folder: any) => ({
         id: folder.id,
         name: folder.name,
         level: folder.parent_folder_id ? 1 : 0, // Simple level mapping
@@ -522,7 +526,7 @@ export const folderController = {
       }));
       
       // Prepare files in the format expected by frontend
-      const formattedFiles = files.map(file => ({
+      const formattedFiles = files.map((file: any) => ({
         id: file.id,
         name: file.name,
         file_name: file.name, // For frontend compatibility
@@ -567,17 +571,26 @@ export const folderController = {
       const [folders] = await connection.query(
         `SELECT * FROM folders WHERE user_id = ? ORDER BY name ASC`,
         [userId]
-      );
+      ) as QueryResult;
       
-      // Build the tree recursively
-      const buildTree = (parentId: number | null) => {
-        const nodes = folders
-          .filter(folder => 
+      // Define folder tree node interface
+      interface FolderTreeNode {
+        id: number;
+        name: string;
+        level: number;
+        nodeId: string;
+        sub_classifications: FolderTreeNode[];
+      }
+      
+      // Build the tree recursively with explicit return type
+      const buildTree = (parentId: number | null): FolderTreeNode[] => {
+        const nodes: FolderTreeNode[] = (folders as RowDataPacket[])
+          .filter((folder: RowDataPacket) => 
             (parentId === null && folder.parent_folder_id === null) || 
             folder.parent_folder_id === parentId
           )
-          .map(folder => {
-            const children = buildTree(folder.folder_id);
+          .map((folder: RowDataPacket) => {
+            const children: FolderTreeNode[] = buildTree(folder.folder_id);
             return {
               id: folder.folder_id,
               name: folder.name,
@@ -616,9 +629,9 @@ export const folderController = {
          WHERE user_id = ? AND name LIKE ?
          ORDER BY name ASC`,
         [userId, `%${searchTerm}%`]
-      );
+      ) as QueryResult;
       
-      const folderList = folders.map(folder => ({
+      const folderList = (folders as RowDataPacket[]).map((folder: RowDataPacket) => ({
         id: folder.folder_id,
         name: folder.name,
         parent_folder_id: folder.parent_folder_id,

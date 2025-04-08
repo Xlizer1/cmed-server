@@ -38,16 +38,16 @@ export const folderRoutes = new Elysia({ prefix: '/api/folders' })
   .get('/:folderId', async ({ params, set }) => {
     const folderId = params.folderId === 'root' ? null : parseInt(params.folderId);
     
-    if (params.folderId !== 'root' && isNaN(folderId)) {
+    if (params.folderId !== 'root' && isNaN(folderId as number)) {
       set.status = 400;
       return { success: false, error: 'Invalid folder ID' };
     }
     
     if (folderId === null) {
       // Get the root folder
-      const [rootFolder] = await folderController.getSubfolders(MOCK_USER_ID, null);
+      const rootFolderResult = await folderController.getSubfolders(MOCK_USER_ID, null);
       
-      if (!rootFolder.success || !rootFolder.subfolders || rootFolder.subfolders.length === 0) {
+      if (!rootFolderResult.success || !rootFolderResult.subfolders || rootFolderResult.subfolders.length === 0) {
         set.status = 404;
         return { success: false, error: 'Root folder not found' };
       }
@@ -55,11 +55,11 @@ export const folderRoutes = new Elysia({ prefix: '/api/folders' })
       return {
         success: true,
         folder: {
-          id: rootFolder.subfolders[0].id,
+          id: rootFolderResult.subfolders[0].id,
           name: 'Root',
           parent_folder_id: null,
-          created_at: rootFolder.subfolders[0].created_at,
-          updated_at: rootFolder.subfolders[0].updated_at
+          created_at: rootFolderResult.subfolders[0].created_at,
+          updated_at: rootFolderResult.subfolders[0].updated_at
         }
       };
     }
@@ -82,7 +82,7 @@ export const folderRoutes = new Elysia({ prefix: '/api/folders' })
   .get('/:folderId/contents', async ({ params, set }) => {
     const folderId = params.folderId === 'root' ? null : parseInt(params.folderId);
     
-    if (params.folderId !== 'root' && isNaN(folderId)) {
+    if (params.folderId !== 'root' && isNaN(folderId as number)) {
       set.status = 400;
       return { success: false, error: 'Invalid folder ID' };
     }
